@@ -1,18 +1,24 @@
 "use client";
 
 import { makeAssistantToolUI } from "@assistant-ui/react";
-import { Search } from "lucide-react";
+import { useState } from "react";
+import { Search, ChevronDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 type WebSearchArgs = {
   query?: string;
 };
 
 type WebSearchResult = {
-  sources?: Array<{
-    url: string;
-    title?: string;
-    snippet?: string;
-  }>;
+  action?: {
+    type: string;
+    query: string;
+  };
 };
 
 export const WebSearchToolUI = makeAssistantToolUI<
@@ -21,42 +27,65 @@ export const WebSearchToolUI = makeAssistantToolUI<
 >({
   toolName: "web_search",
   render: function WebSearchRender({ result, status }) {
+    const [isOpen, setIsOpen] = useState(false);
+
     if (status.type === "requires-action") return null;
 
     const isRunning = status.type === "running";
     const isComplete = status.type === "complete";
     const isError = status.type === "incomplete";
 
-    if (isRunning) {
-      return (
-        <div className="my-3 flex items-center gap-2 rounded-lg border bg-muted/30 p-3">
-          <Search className="h-4 w-4 animate-pulse text-blue-500" />
-          <span className="text-sm text-muted-foreground">
-            Searching the web...
-          </span>
-        </div>
-      );
-    }
+    const query = result?.action?.query || "web search";
 
-    if (isError) {
-      return (
-        <div className="my-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          Search incomplete ({status.reason || "unknown"})
-        </div>
-      );
-    }
+    return (
+      <Collapsible open={isOpen} onOpenChange={setIsOpen} className="my-3">
+        <CollapsibleTrigger asChild>
+          <Button
+            variant="ghost"
+            className="flex w-full items-center gap-2 text-sm font-medium hover:bg-muted/50 p-3 rounded-lg border"
+          >
+            <Search
+              className={`h-4 w-4 ${isRunning ? "animate-pulse text-orange-500" : "text-muted-foreground"}`}
+            />
+            <span className="flex-1 text-left">
+              {isRunning && "Searching the web..."}
+              {isComplete && `Searched for: ${query}`}
+              {isError && "Search failed"}
+            </span>
+            {isComplete && (
+              <ChevronDown
+                className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
+              />
+            )}
+          </Button>
+        </CollapsibleTrigger>
 
-    if (isComplete) {
-      return (
-        <div className="my-3 flex items-center gap-2 rounded-lg border bg-card p-3">
-          <Search className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">
-            Used web search
-          </span>
-        </div>
-      );
-    }
+        {isRunning && (
+          <div className="mt-2 space-y-2 px-3">
+            <div className="h-3 w-3/4 animate-pulse rounded bg-muted" />
+            <div className="h-3 w-full animate-pulse rounded bg-muted" />
+            <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
+          </div>
+        )}
 
-    return null;
+        {isError && (
+          <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            Search incomplete ({status.reason || "unknown"})
+          </div>
+        )}
+
+        {isComplete && (
+          <CollapsibleContent className="mt-2">
+            <div className="rounded-lg border bg-card p-3 text-sm text-muted-foreground">
+              <p className="mb-2 font-medium text-foreground">Query:</p>
+              <p className="italic">"{query}"</p>
+              <p className="mt-3 text-xs">
+                Sources are cited inline in the response above.
+              </p>
+            </div>
+          </CollapsibleContent>
+        )}
+      </Collapsible>
+    );
   },
 });

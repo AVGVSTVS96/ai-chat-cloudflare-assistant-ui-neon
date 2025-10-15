@@ -11,13 +11,14 @@ export async function POST(req: Request) {
   const { messages, tools } = (await req.json()) as any;
 
   const result = streamText({
-    model: openai("gpt-4o"),
+    model: openai.responses("gpt-4o"),
     messages: convertToModelMessages(messages),
-    system: `You are a helpful assistant. You are currently talking to ${getUserName(user)}`,
+    system: `You are a helpful assistant. You are currently talking to ${getUserName(user)}. When you use web search, always summarize the findings in your response.`,
     tools: {
       ...frontendTools(tools),
-      // add backend tools here
+      web_search: openai.tools.webSearch({}),
     },
+    maxSteps: 5,
   });
 
   return result.toUIMessageStreamResponse();

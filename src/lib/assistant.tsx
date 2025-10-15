@@ -8,6 +8,7 @@ import { ThreadList } from "@/components/assistant-ui/thread-list";
 import { AssistantCloud } from "@assistant-ui/react";
 import { ProfileButton } from "@/components/profile-button";
 import Dither from "@/components/Dither";
+import { WebSearchToolUI } from "@/components/assistant-ui/web-search-tool-ui";
 
 export const Assistant = () => {
   const cloud = useMemo(
@@ -60,6 +61,9 @@ export const Assistant = () => {
           <Thread />
         </div>
       </div>
+      
+      {/* Register tool UIs */}
+      <WebSearchToolUI />
     </AssistantRuntimeProvider>
   );
 };

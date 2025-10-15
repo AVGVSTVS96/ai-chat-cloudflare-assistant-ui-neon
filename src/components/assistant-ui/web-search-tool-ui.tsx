@@ -1,14 +1,15 @@
 "use client";
 
 import { makeAssistantToolUI } from "@assistant-ui/react";
-import { useState } from "react";
-import { Search, ChevronDown } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Search, ChevronDown, ExternalLink, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { useMessage } from "@assistant-ui/react";
 
 type WebSearchArgs = {
   query?: string;
@@ -21,6 +22,15 @@ type WebSearchResult = {
   };
 };
 
+type Source = {
+  url: string;
+  title: string;
+};
+
+type SourceWithFallback = Source & {
+  logoError?: boolean;
+};
+
 export const WebSearchToolUI = makeAssistantToolUI<
   WebSearchArgs,
   WebSearchResult
@@ -28,6 +38,7 @@ export const WebSearchToolUI = makeAssistantToolUI<
   toolName: "web_search",
   render: function WebSearchRender({ result, status }) {
     const [isOpen, setIsOpen] = useState(false);
+    const message = useMessage();
 
     if (status.type === "requires-action") return null;
 
@@ -36,6 +47,59 @@ export const WebSearchToolUI = makeAssistantToolUI<
     const isError = status.type === "incomplete";
 
     const query = result?.action?.query || "web search";
+
+    // Extract inline citations from message text
+    const [sources, setSources] = useState<SourceWithFallback[]>([]);
+
+    useMemo(() => {
+      if (!isComplete || !message) {
+        setSources([]);
+        return;
+      }
+      
+      // Get the text content from the message
+      const textPart = message.content.find((part: any) => part.type === "text");
+      if (!textPart?.text) {
+        setSources([]);
+        return;
+      }
+
+      // Parse markdown links: [title](url)
+      const citationRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+      const foundSources: SourceWithFallback[] = [];
+      const seenUrls = new Set<string>();
+      
+      let match;
+      while ((match = citationRegex.exec(textPart.text)) !== null) {
+        const title = match[1];
+        const url = match[2];
+        
+        // Only include if it's a valid URL and not a duplicate
+        if (url.startsWith('http') && !seenUrls.has(url)) {
+          foundSources.push({ title, url, logoError: false });
+          seenUrls.add(url);
+        }
+      }
+      
+      setSources(foundSources);
+    }, [isComplete, message]);
+
+    const sourceCount = sources.length;
+
+    const handleLogoError = (index: number) => {
+      setSources(prev => 
+        prev.map((src, i) => i === index ? { ...src, logoError: true } : src)
+      );
+    };
+
+    const getHostname = (url: string) => {
+      try {
+        const { hostname } = new URL(url);
+        return hostname.replace(/^www\./, "");
+      } catch {
+        return url;
+      }
+    };
 
     return (
       <Collapsible open={isOpen} onOpenChange={setIsOpen} className="my-3">
@@ -49,7 +113,7 @@ export const WebSearchToolUI = makeAssistantToolUI<
             />
             <span className="flex-1 text-left">
               {isRunning && "Searching the web..."}
-              {isComplete && `Searched for: ${query}`}
+              {isComplete && `Used ${sourceCount} source${sourceCount !== 1 ? "s" : ""}`}
               {isError && "Search failed"}
             </span>
             {isComplete && (
@@ -76,12 +140,45 @@ export const WebSearchToolUI = makeAssistantToolUI<
 
         {isComplete && (
           <CollapsibleContent className="mt-2">
-            <div className="rounded-lg border bg-card p-3 text-sm text-muted-foreground">
-              <p className="mb-2 font-medium text-foreground">Query:</p>
-              <p className="italic">"{query}"</p>
-              <p className="mt-3 text-xs">
-                Sources are cited inline in the response above.
-              </p>
+            <div className="grid gap-2 px-3">
+              {sourceCount === 0 && (
+                <div className="text-sm text-muted-foreground p-3">
+                  No sources found
+                </div>
+              )}
+              {sources.map((source, index) => (
+                <a
+                  key={index}
+                  href={source.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-start gap-2 rounded-lg border bg-card p-3 transition-colors hover:bg-muted/50"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        {source.logoError ? (
+                          <Globe className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                        ) : (
+                          <img
+                            src={`https://img.logo.dev/${getHostname(source.url)}?token=pk_X-HKkl47T3KOTFtOkPnKsQ`}
+                            alt=""
+                            className="h-4 w-4 flex-shrink-0 rounded"
+                            onError={() => handleLogoError(index)}
+                          />
+                        )}
+                        <span className="truncate text-sm font-medium group-hover:text-orange-500">
+                          {source.title}
+                        </span>
+                      </div>
+                      <ExternalLink className="h-3 w-3 flex-shrink-0 text-muted-foreground group-hover:text-orange-500" />
+                    </div>
+                    <span className="text-xs text-muted-foreground block">
+                      {getHostname(source.url)}
+                    </span>
+                  </div>
+                </a>
+              ))}
             </div>
           </CollapsibleContent>
         )}
